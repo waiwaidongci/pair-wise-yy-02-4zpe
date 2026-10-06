@@ -61,6 +61,15 @@ export default function Inspector() {
             onChange={(event) => updateNode(node.id, { description: event.target.value })}
           />
         </Form.Item>
+        <Form.Item label="失败重试次数" tooltip="节点执行失败后按该次数重试，仍失败则跳过其下游节点">
+          <InputNumber
+            min={0}
+            max={5}
+            style={{ width: '100%' }}
+            value={node.data.retries ?? 0}
+            onChange={(value) => updateNode(node.id, { retries: value ?? 0 })}
+          />
+        </Form.Item>
         <Divider orientation="left">执行参数</Divider>
         {Object.entries(node.data.config).map(([key, value]) => (
           <Form.Item key={key} label={key}>

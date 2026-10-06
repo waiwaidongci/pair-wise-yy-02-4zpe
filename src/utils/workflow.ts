@@ -84,6 +84,7 @@ export function createWorkflowNode(
       description: definition.description,
       config: defaultConfig(kind),
       status: 'idle',
+      retries: 2,
     },
   }
 }
@@ -187,6 +188,54 @@ export function autoLayout(nodes: WorkflowNode[], edges: WorkflowEdge[]): Workfl
     const index = (columns.get(column) ?? []).findIndex((item) => item.id === node.id)
     return { ...node, position: { x: 90 + column * 260, y: 90 + index * 150 } }
   })
+}
+
+/** 简单稳定的字符串哈希（FNV-1a 变体），用于计算节点结果依据 */
+export function hashString(input: string): string {
+  let h = 0xdeadbeef
+  for (let i = 0; i < input.length; i += 1) {
+    h = Math.imul(h ^ input.charCodeAt(i), 2246822519)
+    h = (h << 13) | (h >>> 19)
+  }
+  return (h >>> 0).toString(36)
+}
+
+/** 节点 -> 其上游节点 id 列表 */
+export function upstreamMap(edges: WorkflowEdge[]): Map<string, string[]> {
+  const map = new Map<string, string[]>()
+  edges.forEach((edge) => {
+    const list = map.get(edge.target) ?? []
+    list.push(edge.source)
+    map.set(edge.target, list)
+  })
+  return map
+}
+
+/**
+ * 计算每个节点的结果依据：
+ * 节点自身参数（kind / label / retries / config）与所有上游依据的递归哈希。
+ * 参数或连线一改动，相关节点依据随之变化，旧结果即失效。
+ */
+export function computeBases(nodes: WorkflowNode[], edges: WorkflowEdge[]): Map<string, string> {
+  const upstream = upstreamMap(edges)
+  const order = topologicalOrder(nodes, edges)
+  const bases = new Map<string, string>()
+  order.forEach((id) => {
+    const node = nodes.find((item) => item.id === id)
+    if (!node) return
+    const upstreams = (upstream.get(id) ?? [])
+      .map((upId) => bases.get(upId) ?? '')
+      .sort()
+    const raw = JSON.stringify({
+      k: node.data.kind,
+      l: node.data.label,
+      r: node.data.retries ?? 0,
+      c: node.data.config,
+      u: upstreams,
+    })
+    bases.set(id, hashString(raw))
+  })
+  return bases
 }
 
 export function sampleWorkflow(): { nodes: WorkflowNode[]; edges: WorkflowEdge[] } {

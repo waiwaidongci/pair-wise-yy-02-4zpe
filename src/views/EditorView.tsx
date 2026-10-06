@@ -9,6 +9,7 @@ import {
   RedoOutlined,
   ReloadOutlined,
   SnippetsOutlined,
+  StopOutlined,
   UndoOutlined,
 } from '@ant-design/icons'
 import { useRef } from 'react'
@@ -26,11 +27,12 @@ export default function EditorView() {
 
   function exportJson() {
     const document: WorkflowDocument = {
-      version: 1,
+      version: 2,
       name: store.name,
       nodes: store.nodes,
       edges: store.edges,
       savedAt: new Date().toISOString(),
+      runRecords: store.runRecords,
     }
     const blob = new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -87,6 +89,14 @@ export default function EditorView() {
           <Upload {...uploadProps}><Button icon={<CloudUploadOutlined />}>导入</Button></Upload>
           <Button icon={<CloudDownloadOutlined />} onClick={exportJson}>导出</Button>
           <Button icon={<ReloadOutlined />} onClick={store.reset}>重置</Button>
+          <Button
+            danger
+            icon={<StopOutlined />}
+            disabled={!store.running}
+            onClick={store.cancelRun}
+          >
+            中断
+          </Button>
           <Button type="primary" icon={<PlayCircleOutlined />} loading={store.running} onClick={run}>模拟执行</Button>
         </Space>
       </header>

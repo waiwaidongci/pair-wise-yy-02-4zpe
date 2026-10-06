@@ -73,6 +73,7 @@ button, input, textarea { font: inherit; }
 .workflow-node p { min-height: 30px; margin: 5px 0 8px; color: #7a8799; font-size: 11px; line-height: 15px; }
 .node-metrics { min-height: 18px; display: flex; gap: 7px; color: #4f6077; font-size: 10px; }
 .node-metrics span { padding: 2px 5px; border-radius: 4px; background: #f2f5f9; }
+.node-metrics .metric-retry { background: #fef3c7; color: #92400e; }
 .port { width: 12px !important; height: 12px !important; border: 2px solid white !important; box-shadow: 0 0 0 1px #9aa9bb; }
 .port-dataset { background: #2563eb !important; }
 .port-number { background: #ca8a04 !important; }
