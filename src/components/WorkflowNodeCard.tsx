@@ -1,5 +1,13 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { CheckCircleFilled, ClockCircleOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons'
+import {
+  CheckCircleFilled,
+  ClockCircleOutlined,
+  CloseCircleFilled,
+  ExclamationCircleFilled,
+  LoadingOutlined,
+  MinusCircleFilled,
+  WarningFilled,
+} from '@ant-design/icons'
 import type { RunStatus, WorkflowNode } from '../types/workflow'
 import { definitionFor } from '../utils/workflow'
 
@@ -9,14 +17,15 @@ const statusIcon: Record<RunStatus, React.ReactNode> = {
   running: <LoadingOutlined spin />,
   success: <CheckCircleFilled />,
   error: <CloseCircleFilled />,
-  skipped: <ClockCircleOutlined />,
+  skipped: <MinusCircleFilled />,
 }
 
 export default function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowNode>) {
   const definition = definitionFor(data.kind)
+  const retrying = data.status === 'running' && (data.attempts ?? 1) > 1
   return (
     <div
-      className={`workflow-node ${selected ? 'is-selected' : ''} status-${data.status}`}
+      className={`workflow-node ${selected ? 'is-selected' : ''} status-${data.status} ${data.stale ? 'is-stale' : ''}`}
       style={{ '--node-color': definition.color } as React.CSSProperties}
     >
       {definition.inputs.map((type, index) => (
@@ -33,11 +42,20 @@ export default function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowN
         <span className="node-kind">{data.kind}</span>
         <span className={`node-status status-${data.status}`}>
           {statusIcon[data.status]}
-          {data.status}
+          {retrying ? `重试 ${data.attempts}` : data.status}
         </span>
       </div>
       <strong>{data.label}</strong>
+      {data.stale && (
+        <div className="stale-chip"><WarningFilled /> 结果已失效</div>
+      )}
       <p>{data.description}</p>
+      {data.status === 'error' && data.errorMessage && (
+        <div className="node-error"><ExclamationCircleFilled /> {data.errorMessage}</div>
+      )}
+      {data.status === 'skipped' && data.errorMessage && (
+        <div className="node-skip">{data.errorMessage}</div>
+      )}
       <div className="node-metrics">
         {data.rows !== undefined && <span>{data.rows.toLocaleString('zh-CN')} 行</span>}
         {data.duration !== undefined && <span>{data.duration} ms</span>}

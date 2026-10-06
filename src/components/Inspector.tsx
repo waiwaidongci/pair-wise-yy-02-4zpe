@@ -1,5 +1,5 @@
 import { Button, Divider, Form, Input, InputNumber, Select, Space, Switch, Tag, Typography } from 'antd'
-import { DeleteOutlined } from '@ant-design/icons'
+import { DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { statusLabel, useWorkflowStore } from '../stores/workflow'
 import { definitionFor } from '../utils/workflow'
 
@@ -10,6 +10,8 @@ export default function Inspector() {
   const edge = useWorkflowStore((state) => state.edges.find((item) => item.id === state.selectedEdgeId))
   const updateNode = useWorkflowStore((state) => state.updateNode)
   const updateConfig = useWorkflowStore((state) => state.updateConfig)
+  const setMaxRetries = useWorkflowStore((state) => state.setMaxRetries)
+  const running = useWorkflowStore((state) => state.running)
   const deleteSelection = useWorkflowStore((state) => state.deleteSelection)
 
   if (!selectedNodeId && !selectedEdgeId) {
@@ -50,6 +52,22 @@ export default function Inspector() {
         </div>
         <Tag color={definition.color}>{statusLabel(node.data.status)}</Tag>
       </div>
+      {node.data.stale && (
+        <div className="stale-banner">
+          <ExclamationCircleOutlined />
+          参数或上游连线已变化，沿用的旧结果已失效，下次执行将按新依据重算。
+        </div>
+      )}
+      {node.data.status === 'error' && node.data.errorMessage && (
+        <div className="error-banner">
+          <ExclamationCircleOutlined /> {node.data.errorMessage}
+        </div>
+      )}
+      {node.data.status === 'skipped' && node.data.errorMessage && (
+        <div className="skip-banner">
+          <ExclamationCircleOutlined /> {node.data.errorMessage}
+        </div>
+      )}
       <Form layout="vertical" className="inspector-form">
         <Form.Item label="节点名称">
           <Input value={node.data.label} onChange={(event) => updateNode(node.id, { label: event.target.value })} />
@@ -62,6 +80,16 @@ export default function Inspector() {
           />
         </Form.Item>
         <Divider orientation="left">执行参数</Divider>
+        <Form.Item label="失败重试次数（不含首次执行）">
+          <InputNumber
+            style={{ width: '100%' }}
+            min={0}
+            max={5}
+            disabled={running}
+            value={node.data.maxRetries}
+            onChange={(next) => setMaxRetries(node.id, next ?? 0)}
+          />
+        </Form.Item>
         {Object.entries(node.data.config).map(([key, value]) => (
           <Form.Item key={key} label={key}>
             {typeof value === 'boolean' ? (
@@ -90,8 +118,10 @@ export default function Inspector() {
         <div className="run-facts">
           <span>输入端口：{definition.inputs.join(' / ') || '无'}</span>
           <span>输出端口：{definition.outputs.join(' / ') || '无'}</span>
+          <span>尝试次数：{node.data.attempts ?? '--'}</span>
           <span>最近耗时：{node.data.duration ?? '--'} ms</span>
           <span>处理行数：{node.data.rows?.toLocaleString('zh-CN') ?? '--'}</span>
+          {node.data.basis && <span>结果依据：{node.data.basis}</span>}
         </div>
         <Button danger block icon={<DeleteOutlined />} onClick={deleteSelection}>删除节点</Button>
       </Space>

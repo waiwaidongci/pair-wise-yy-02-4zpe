@@ -1,10 +1,11 @@
-import { App as AntApp, Button, Input, Space, Tooltip, Upload } from 'antd'
+import { App as AntApp, Button, Input, Select, Space, Tooltip, Upload } from 'antd'
 import {
   ApartmentOutlined,
   CloudDownloadOutlined,
   CloudUploadOutlined,
   CopyOutlined,
   DeleteOutlined,
+  PauseCircleOutlined,
   PlayCircleOutlined,
   RedoOutlined,
   ReloadOutlined,
@@ -17,7 +18,6 @@ import NodePalette from '../components/NodePalette'
 import Inspector from '../components/Inspector'
 import WorkflowCanvas from '../components/WorkflowCanvas'
 import { useWorkflowStore } from '../stores/workflow'
-import type { WorkflowDocument } from '../types/workflow'
 
 export default function EditorView() {
   const { message } = AntApp.useApp()
@@ -25,13 +25,7 @@ export default function EditorView() {
   const store = useWorkflowStore()
 
   function exportJson() {
-    const document: WorkflowDocument = {
-      version: 1,
-      name: store.name,
-      nodes: store.nodes,
-      edges: store.edges,
-      savedAt: new Date().toISOString(),
-    }
+    const document = store.exportDocument()
     const blob = new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = window.document.createElement('a')
@@ -39,7 +33,7 @@ export default function EditorView() {
     anchor.download = `${store.name.replace(/\s+/g, '-')}.json`
     anchor.click()
     URL.revokeObjectURL(url)
-    message.success('流程 JSON 已导出')
+    message.success('流程与运行记录已导出')
   }
 
   const uploadProps: UploadProps = {
@@ -47,10 +41,9 @@ export default function EditorView() {
     showUploadList: false,
     beforeUpload: async (file) => {
       try {
-        const document = JSON.parse(await file.text()) as WorkflowDocument
-        if (!Array.isArray(document.nodes) || !Array.isArray(document.edges)) throw new Error('JSON 缺少 nodes 或 edges')
-        store.loadDocument(document)
-        message.success('流程导入成功')
+        const raw = JSON.parse(await file.text())
+        const { legacy } = store.loadDocument(raw)
+        message.success(legacy ? '旧版流程已按顺序执行模式打开' : '流程与运行记录导入成功')
       } catch (error) {
         message.error(error instanceof Error ? error.message : '流程 JSON 无效')
       }
@@ -59,9 +52,16 @@ export default function EditorView() {
   }
 
   async function run() {
-    message.loading({ content: '正在模拟执行...', key: 'run' })
+    message.loading({ content: '正在排队执行…', key: 'run' })
     await store.simulate()
-    message.success({ content: '模拟执行完成', key: 'run' })
+    const latest = useWorkflowStore.getState()
+    if (latest.notice.includes('中断')) {
+      message.warning({ content: latest.notice, key: 'run' })
+    } else if (latest.notice.includes('失败') || latest.notice.includes('跳过')) {
+      message.warning({ content: latest.notice, key: 'run' })
+    } else {
+      message.success({ content: latest.notice, key: 'run' })
+    }
   }
 
   return (
@@ -87,7 +87,24 @@ export default function EditorView() {
           <Upload {...uploadProps}><Button icon={<CloudUploadOutlined />}>导入</Button></Upload>
           <Button icon={<CloudDownloadOutlined />} onClick={exportJson}>导出</Button>
           <Button icon={<ReloadOutlined />} onClick={store.reset}>重置</Button>
-          <Button type="primary" icon={<PlayCircleOutlined />} loading={store.running} onClick={run}>模拟执行</Button>
+          <Tooltip title={store.sequentialMode ? '旧版文件按顺序执行（并发 1）打开，可在此调整' : '同时运行的节点数量上限，到顶后其余节点排队'}>
+            <span className="concurrency-picker">
+              <span className="concurrency-label">并发</span>
+              <Select
+                size="middle"
+                value={store.maxConcurrency}
+                disabled={store.running}
+                style={{ width: 74 }}
+                onChange={(value) => store.setMaxConcurrency(value)}
+                options={[1, 2, 3, 4, 6, 8].map((value) => ({ value, label: value === 1 ? '顺序' : value }))}
+              />
+            </span>
+          </Tooltip>
+          {store.running ? (
+            <Button danger icon={<PauseCircleOutlined />} onClick={store.stopRun}>中断</Button>
+          ) : (
+            <Button type="primary" icon={<PlayCircleOutlined />} onClick={run}>执行</Button>
+          )}
         </Space>
       </header>
       <main className="editor-grid">
